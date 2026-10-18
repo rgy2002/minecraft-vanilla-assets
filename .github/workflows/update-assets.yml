@@ -19,13 +19,23 @@ jobs:
         with:
           python-version: '3.11'
 
+      # --- ADD THE CACHE STEP HERE ---
+      - name: Cache Processed Minecraft Zips
+        uses: actions/cache@v4
+        with:
+          path: mc-assets-data-*.zip
+          key: minecraft-assets-cache-${{ hashFiles('extract.py') }}
+          restore-keys: |
+            minecraft-assets-cache-
+      # -------------------------------
+
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run extraction script (All versions)
+      - name: Run extraction script (All Versions)
         run: python extract.py
 
-      - name: Create Releases for All Zips
+      - name: Create Releases for All Generated Zips
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -34,13 +44,13 @@ jobs:
             VERSION=$(echo "$zip_file" | sed 's/mc-assets-data-//g' | sed 's/.zip//g')
             TAG="v$VERSION"
 
-            echo "Checking release for $TAG..."
+            echo "Processing release for $TAG..."
             if gh release view "$TAG" &>/dev/null; then
-              echo "Release $TAG already exists, skipping upload."
+              echo "Release $TAG already exists, skipping."
             else
               echo "Creating release for $TAG..."
               gh release create "$TAG" "$zip_file" \
                 --title "Minecraft Vanilla Assets & Data v$VERSION" \
-                --notes "Automated extraction for Minecraft version $VERSION."
+                --notes "Automated asset and data extraction for Minecraft version $VERSION."
             fi
           done
