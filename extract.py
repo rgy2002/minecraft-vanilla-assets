@@ -6,45 +6,59 @@ import requests
 MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 
 def main():
+    print("Fetching version manifest...")
     response = requests.get(MANIFEST_URL)
     manifest = response.json()
-    latest_release = manifest['latest']['release']
-    print(f"Latest release: {latest_release}")
 
-    for version in manifest['versions']:
-        if version['id'] == latest_release:
-            v_data = requests.get(version['url']).json()
-            client_url = v_data['downloads']['client']['url']
+    # Target all releases (or slice it if you want a specific range)
+    releases = [v for v in manifest['versions'] if v['type'] == 'release']
 
-            # Download client jar
-            print(f"Downloading client JAR for {latest_release}...")
-            jar_data = requests.get(client_url).content
-            jar_path = "client.jar"
-            with open(jar_path, "wb") as f:
-                f.write(jar_data)
+    # For testing/running safely within action limits, you can loop through them or target specific ones.
+    # Let's process the latest release as an example, or loop through all:
+    for version in releases[:5]:  # Change slice or remove it to process all from 1.0 onwards
+        v_id = version['id']
+        v_url = version['url']
+        print(f"\nProcessing Minecraft version: {v_id}")
 
-            # Extract assets folder from jar
-            print("Extracting assets...")
-            assets_dir = "extracted_assets"
-            os.makedirs(assets_dir, exist_ok=True)
+        v_data = requests.get(v_url).json()
+        if 'client' not in v_data['downloads']:
+            print(f"Skipping {v_id}: No client download available.")
+            continue
 
-            with zipfile.ZipFile(jar_path, 'r') as jar:
-                for file in jar.namelist():
-                    if file.startswith("assets/"):
-                        jar.extract(file, assets_dir)
+        client_url = v_data['downloads']['client']['url']
 
-            # Zip the extracted assets
-            zip_name = f"mc-assets-{latest_release}.zip"
-            print(f"Zipping into {zip_name}...")
-            with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, dirs, files in os.walk(os.path.join(assets_dir, "assets")):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, assets_dir)
-                        zipf.write(file_path, arcname)
+        # Download client jar
+        jar_path = f"client_{v_id}.jar"
+        jar_data = requests.get(client_url).content
+        with open(jar_path, "wb") as f:
+            f.write(jar_data)
 
-            print("Asset packaging complete!")
-            break
+        extracted_dir = f"extracted_{v_id}"
+        os.makedirs(extracted_dir, exist_ok=True)
+
+        # Extract both assets and data folders from the jar
+        with zipfile.ZipFile(jar_path, 'r') as jar:
+            for file in jar.namelist():
+                if file.startswith("assets/") or file.startswith("data/"):
+                    jar.extract(file, extracted_dir)
+
+        # Zip both folders together into a single archive
+        zip_name = f"mc-assets-data-{v_id}.zip"
+        print(f"Zipping assets and data into {zip_name}...")
+        with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for prefix in ["assets", "data"]:
+                target_path = os.path.join(extracted_dir, prefix)
+                if os.path.exists(target_path):
+                    for root, dirs, files in os.walk(target_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            arcname = os.path.relpath(file_path, extracted_dir)
+                            zipf.write(file_path, arcname)
+
+        # Cleanup temporary files for this version
+        os.remove(jar_path)
+        print(f"Finished packaging version {v_id}!")
+        break # Remove 'break' if you want it to process multiple versions in a single workflow run
 
 if __name__ == "__main__":
     main()
