@@ -2,14 +2,14 @@ name: Update Minecraft Assets
 
 on:
   schedule:
-    - cron: '0 0 * * 1' # Runs every Monday
-  workflow_dispatch: # Allows manual trigger from GitHub web UI
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # Required to create GitHub releases
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,3 +24,21 @@ jobs:
 
       - name: Run extraction script
         run: python extract.py
+
+      - name: Find generated zip file
+        id: get_zip
+        run: |
+          ZIP_FILE=$(ls mc-assets-*.zip 2>/dev/null | head -n 1)
+          VERSION=$(echo $ZIP_FILE | sed 's/mc-assets-//g' | sed 's/.zip//g')
+          echo "zip_file=$ZIP_FILE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_zip.outputs.version }}
+          name: Minecraft Vanilla Assets v${{ steps.get_zip.outputs.version }}
+          files: ${{ steps.get_zip.outputs.zip_file }}
+          body: "Automated vanilla asset extraction for Minecraft ${{ steps.get_zip.outputs.version }}."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
