@@ -3,7 +3,7 @@ name: Update Minecraft Assets
 on:
   schedule:
     - cron: '0 0 * * 1' # Runs every Monday
-  workflow_dispatch: # Allows you to trigger it manually anytime from the GitHub web UI
+  workflow_dispatch: # Allows manual trigger from GitHub web UI
 
 jobs:
   build:
@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run asset fetcher
-        run: |
-          echo "Add your extraction script or commands here"
-          # This environment can download Mojang's version manifest, 
-          # extract client assets via python scripts, and commit/tag them automatically.
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run extraction script
+        run: python extract.py
